@@ -7,6 +7,7 @@ import datetime
 
 # colored console output
 from colorama import init, Fore, Style
+
 init()
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;udp'
@@ -20,8 +21,12 @@ def cout(header, h_color, msg, m_color):
     print(('[' + h_color + '{h}' + Style.RESET_ALL + '] ' + m_color + '{m}' + Style.RESET_ALL).format(h=header, m=msg))
 
 
-def get_resize_frame(frame, w, h):
-    return cv2.resize(frame, (w, h), interpolation=cv2.INTER_LINEAR)
+def get_resized_frame(frame, w, h):
+    try:
+        return cv2.resize(frame, (w, h), interpolation=cv2.INTER_LINEAR)
+    except:
+        cout('Frame Resizer', Fore.YELLOW, 'Failed resolution resize ({w}x{h}): {f})'.format(w=w, h=h, f=frame),
+             Fore.BLUE)
 
 
 def check_save_path(path):
@@ -35,7 +40,7 @@ def check_save_path(path):
 
 class Cam:
     def __init__(self, url, cam_name):
-        self._background = True
+        self._background = False
         self._isSaving = True
         self._isActive = True
         self._isLinux = True
@@ -52,7 +57,7 @@ class Cam:
         self._frame_height = int(self._cap.get(4))
         self._save_length = Recording_Length
         self._title = str(datetime.datetime.now())
-        self._cycles = 0
+        self._files_saved = 0
         self._frames_captured = 0
 
         self._saver = None
@@ -85,7 +90,7 @@ class Cam:
         self._isActive = False
 
     def new_file(self):
-        self._cycles += 1
+        self._files_saved += 1
         cout('Saver - {c}'.format(c=self._cam_name), Fore.RED, 'Recording cycle ended. File Saved', Fore.BLUE)
         self.stop_saving()
         start_time = datetime.datetime.now()
@@ -123,7 +128,7 @@ class Cam:
                     self.write_frame(frame)
 
     def render_frame_text(self, frame):
-        cv2.putText(frame, text='Cycles: ' + str(self._cycles), org=(10, 35), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+        cv2.putText(frame, text='Cycles: ' + str(self._files_saved), org=(10, 35), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                     fontScale=1, color=(0, 0, 255), thickness=2, lineType=cv2.LINE_AA)
         return frame
 
@@ -135,14 +140,15 @@ class Cam:
         resize_w = 854
         resize_h = 480
         if not self._background:
-            resized = get_resize_frame(frame, resize_w, resize_h)
+            resized = get_resized_frame(frame, resize_w, resize_h)
             resized = self.render_frame_text(resized)
             if self._isSaving:
                 if math.sin(self._frames_captured * 0.2) > 0:
                     cv2.circle(resized, (resize_w - 40, 35), 25, (0, 0, 255), -1)
             else:
                 rect_size = 50
-                cv2.rectangle(resized, (resize_w - rect_size - 10, rect_size+10), (resize_w - 10, rect_size+10), (255, 0, 0), -1)
+                cv2.rectangle(resized, (resize_w - rect_size - 10, rect_size + 10), (resize_w - 10, rect_size + 10),
+                              (255, 0, 0), -1)
             cv2.imshow(self._cam_name, resized)
 
 
@@ -155,7 +161,8 @@ def clear_old_videos():
         for year_fldr in os.listdir(root + '/' + cam_fldr):
             for month_fldr in os.listdir(root + '/' + cam_fldr + '/' + year_fldr):
                 for day_fldr in os.listdir(root + '/' + cam_fldr + '/' + year_fldr + '/' + month_fldr):
-                    for rec_file in os.listdir(root + '/' + cam_fldr + '/' + year_fldr + '/' + month_fldr + '/' + day_fldr):
+                    for rec_file in os.listdir(
+                            root + '/' + cam_fldr + '/' + year_fldr + '/' + month_fldr + '/' + day_fldr):
                         rec_path = '{r}/{c}/{y}/{m}/{d}/{rf}'.format(r=root, c=cam_fldr, y=year_fldr, m=month_fldr,
                                                                      d=day_fldr, rf=rec_file)
                         rec_date = rec_file.split('.')[0]
@@ -170,7 +177,7 @@ def clear_old_videos():
 
 
 cams.append(Cam('rtsp://beverly1:0FtYard1@192.168.1.245/live', 'Beverly_Front'))
-cams.append(Cam('rtsp://admin:jeffjadd@192.168.1.246/live', 'Beverly_Backyard'))
+# cams.append(Cam('rtsp://admin:jeffjadd@192.168.1.246/live', 'Beverly_Backyard'))
 
 
 def main():
