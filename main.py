@@ -38,6 +38,48 @@ def check_save_path(path):
             raise
 
 
+class DataPoint:
+    def __init__(self, title, value):
+        self._title = title
+        self._value = value
+
+    def render_point(self, frame, x, y):
+        cv2.putText(frame, text=self._title + ' : ' + str(self._value),
+                    org=(x, y),
+                    fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                    fontScale=0.5,
+                    color=(255, 255, 255),
+                    thickness=1,
+                    lineType=cv2.LINE_AA)
+
+
+class DataSheet:
+    def __init__(self, origin_x, origin_y, width, height, color_tuple):
+        self._origin = (origin_x, origin_y)
+        self._color = color_tuple
+        self._w = width
+        self._h = height
+        self._data_points = []
+        self.VERT_PADDING = 20
+        self.HOR_PADDING = 5
+
+    def queue_point(self, data_point):
+        self._data_points.append(data_point)
+
+    def render_points(self, frame):
+        self._h = (len(self._data_points) * self.VERT_PADDING) + 10
+
+        points_rendered = 0
+        cv2.rectangle(frame, (self._origin[0], self._origin[1]), (self._origin[0] + self._w, self._origin[1] + self._h),
+                      self._color, -1)
+
+        for dp in self._data_points:
+            points_rendered += 1
+            dp.render_point(frame, self._origin[0] + self.HOR_PADDING, self._origin[1] + (points_rendered * self.VERT_PADDING))
+
+        self._data_points = []
+
+
 class Cam:
     def __init__(self, url, cam_name):
         self._background = False
@@ -49,6 +91,7 @@ class Cam:
         self._cam_name = cam_name
         self._root_fldr = 'recordings/{name}/'.format(name=self._cam_name)
         self._destination = self._root_fldr
+        self._datasheet = DataSheet(10, 10, 200, 200, (255, 0, 0))
 
         self._cap = None
         self.gen_capture()
@@ -128,8 +171,8 @@ class Cam:
                     self.write_frame(frame)
 
     def render_frame_text(self, frame):
-        cv2.putText(frame, text='Cycles: ' + str(self._files_saved), org=(10, 35), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                    fontScale=1, color=(0, 0, 255), thickness=2, lineType=cv2.LINE_AA)
+        self._datasheet.queue_point(DataPoint('Files Saved', self._files_saved))
+        self._datasheet.render_points(frame)
         return frame
 
     def write_frame(self, frame):
@@ -144,7 +187,7 @@ class Cam:
             resized = self.render_frame_text(resized)
             if self._isSaving:
                 if math.sin(self._frames_captured * 0.2) > 0:
-                    cv2.circle(resized, (resize_w - 40, 35), 25, (0, 0, 255), -1)
+                    cv2.circle(resized, (resize_w - 40, 35), 20, (0, 0, 255), -1)
             else:
                 rect_size = 50
                 cv2.rectangle(resized, (resize_w - rect_size - 10, rect_size + 10), (resize_w - 10, rect_size + 10),
@@ -177,11 +220,13 @@ def clear_old_videos():
 
 
 cams.append(Cam('rtsp://beverly1:0FtYard1@192.168.1.245/live', 'Beverly_Front'))
+
+
 # cams.append(Cam('rtsp://admin:jeffjadd@192.168.1.246/live', 'Beverly_Backyard'))
 
 
 def main():
-    schedule.every().day.at('23:59').do(clear_old_videos)
+    schedule.every().day.at('23:55').do(clear_old_videos)
 
     # program loop
     while True:
