@@ -4,6 +4,7 @@ import os
 import cv2
 import schedule
 import datetime
+import numpy as np
 
 # colored console output
 from colorama import init, Fore, Style
@@ -42,15 +43,25 @@ class DataPoint:
     def __init__(self, title, value):
         self._title = title
         self._value = value
+        self._size = 0
 
     def render_point(self, frame, x, y):
-        cv2.putText(frame, text=self._title + ' : ' + str(self._value),
+        font = cv2.FONT_HERSHEY_DUPLEX
+        font_scale = 0.5
+        color = (0, 0, 0)
+        thickness = 1
+        line_type = cv2.LINE_AA
+        text = self._title + ' : ' + str(self._value)
+
+        self._size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+
+        cv2.putText(frame, text=text,
                     org=(x, y),
-                    fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                    fontScale=0.5,
-                    color=(255, 255, 255),
-                    thickness=1,
-                    lineType=cv2.LINE_AA)
+                    fontFace=font,
+                    fontScale=font_scale,
+                    color=color,
+                    thickness=thickness,
+                    lineType=line_type)
 
 
 class DataSheet:
@@ -67,17 +78,27 @@ class DataSheet:
         self._data_points.append(data_point)
 
     def render_points(self, frame):
+        # setup variables
         self._h = (len(self._data_points) * self.VERT_PADDING) + 10
-
         points_rendered = 0
-        cv2.rectangle(frame, (self._origin[0], self._origin[1]), (self._origin[0] + self._w, self._origin[1] + self._h),
-                      self._color, -1)
+        x, y, w, h = self._origin[0], self._origin[1], self._w, self._h
+
+        # grab cropped section where box will be
+        sub_img = frame[y: y+h, x: x+w]
+        # create a blue rect from sub_img properties
+        blue_rect = np.ones(sub_img.shape, dtype=np.uint8) * 255
+        # combine
+        final_edit = cv2.addWeighted(sub_img, 0.5, blue_rect, 0.5, 1.0)
+        # re-insert
+        frame[y:y+h, x:x+w] = final_edit
 
         for dp in self._data_points:
             points_rendered += 1
-            dp.render_point(frame, self._origin[0] + self.HOR_PADDING, self._origin[1] + (points_rendered * self.VERT_PADDING))
+            dp.render_point(frame, self._origin[0] + self.HOR_PADDING,
+                            self._origin[1] + (points_rendered * self.VERT_PADDING))
 
         self._data_points = []
+        return frame
 
 
 class Cam:
@@ -170,10 +191,10 @@ class Cam:
                 if self._isSaving:
                     self.write_frame(frame)
 
-    def render_frame_text(self, frame):
+    def render_frame_attributes(self, frame):
         self._datasheet.queue_point(DataPoint('Files Saved', self._files_saved))
-        self._datasheet.render_points(frame)
-        return frame
+        fnl = self._datasheet.render_points(frame)
+        return fnl
 
     def write_frame(self, frame):
         # determine if it's time to create a new file or delete old files
@@ -184,7 +205,7 @@ class Cam:
         resize_h = 480
         if not self._background:
             resized = get_resized_frame(frame, resize_w, resize_h)
-            resized = self.render_frame_text(resized)
+            resized = self.render_frame_attributes(resized)
             if self._isSaving:
                 if math.sin(self._frames_captured * 0.2) > 0:
                     cv2.circle(resized, (resize_w - 40, 35), 20, (0, 0, 255), -1)
