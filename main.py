@@ -5,6 +5,8 @@ import cv2
 import schedule
 import datetime
 import numpy as np
+import http.server
+import socketserver
 
 # colored console output
 from colorama import init, Fore, Style
@@ -37,6 +39,34 @@ def check_save_path(path):
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
+
+
+class APIHandler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        p = self.path
+        print(p)
+
+        if p == "/cams":
+            self.send_header("Content-type", "text/xml")
+            self.end_headers()
+            print('hello')
+
+
+class HttpServer:
+    PORT = 9000
+    tcp_socket = None
+    api_handler = APIHandler
+
+    def start(self):
+        cout("HTTP", Fore.GREEN, "Initializing http server on port: {p} ".format(p=self.PORT), Fore.BLUE)
+        try:
+            socketserver.TCPServer.allow_reuse_address = True
+            self.tcp_socket = socketserver.TCPServer(("", self.PORT), self.api_handler)
+            self.tcp_socket.serve_forever()
+        except KeyboardInterrupt:
+            cout("HTTP", Fore.RED, "Ctrl + Alt detected, closing server.", Fore.BLUE)
+        finally:
+            cout("HTTP", Fore.RED, "Closing server.", Fore.BLUE)
 
 
 class DataPoint:
@@ -84,13 +114,13 @@ class DataSheet:
         x, y, w, h = self._origin[0], self._origin[1], self._w, self._h
 
         # grab cropped section where box will be
-        sub_img = frame[y: y+h, x: x+w]
+        sub_img = frame[y: y + h, x: x + w]
         # create a blue rect from sub_img properties
         blue_rect = np.ones(sub_img.shape, dtype=np.uint8) * 255
         # combine
         final_edit = cv2.addWeighted(sub_img, 0.5, blue_rect, 0.5, 1.0)
         # re-insert
-        frame[y:y+h, x:x+w] = final_edit
+        frame[y:y + h, x:x + w] = final_edit
 
         for dp in self._data_points:
             points_rendered += 1
@@ -181,7 +211,10 @@ class Cam:
     def update(self):
         if self._isActive:
             if not self._cap.isOpened():
-                print("Oops, there was a problem connecting to {link}".format(link=self._url))
+                cout("Cam - {c}".format(c=self._cam_name), Fore.YELLOW,
+                     "Oops, there was a problem connecting to {link}. Stopping process.".format(link=self._url),
+                     Fore.WHITE)
+                self.stop()
             else:
                 success, frame = self._cap.read()
                 self._frames_captured += 1
@@ -242,12 +275,15 @@ def clear_old_videos():
 
 cams.append(Cam('rtsp://beverly1:0FtYard1@192.168.1.245/live', 'Beverly_Front'))
 
-
 # cams.append(Cam('rtsp://admin:jeffjadd@192.168.1.246/live', 'Beverly_Backyard'))
+
+http_server = HttpServer()
 
 
 def main():
     schedule.every().day.at('23:55').do(clear_old_videos)
+
+    http_server.start()
 
     # program loop
     while True:
