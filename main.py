@@ -5,13 +5,7 @@ import cv2
 import schedule
 import datetime
 import numpy as np
-import http.server
-import socketserver
-
-# colored console output
-from colorama import init, Fore, Style
-
-init()
+import utils
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;udp'
 cams = []
@@ -20,16 +14,13 @@ Recorded_Days = 10
 Recording_Length = 1
 
 
-def cout(header, h_color, msg, m_color):
-    print(('[' + h_color + '{h}' + Style.RESET_ALL + '] ' + m_color + '{m}' + Style.RESET_ALL).format(h=header, m=msg))
-
-
 def get_resized_frame(frame, w, h):
     try:
         return cv2.resize(frame, (w, h), interpolation=cv2.INTER_LINEAR)
     except:
-        cout('Frame Resizer', Fore.YELLOW, 'Failed resolution resize ({w}x{h}): {f})'.format(w=w, h=h, f=frame),
-             Fore.BLUE)
+        utils.cout('Frame Resizer', utils.Fore.YELLOW,
+                   'Failed resolution resize ({w}x{h}): {f})'.format(w=w, h=h, f=frame),
+                   utils.Fore.BLUE)
 
 
 def check_save_path(path):
@@ -39,32 +30,6 @@ def check_save_path(path):
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
-
-
-class APIHandler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        p = self.path
-
-        if p == "/cams":
-            self.send_header("Content-type", "text/xml")
-            self.end_headers()
-
-
-class HttpServer:
-    PORT = 9000
-    tcp_socket = None
-    api_handler = APIHandler
-
-    def start(self):
-        cout("HTTP", Fore.GREEN, "Initializing http server on port: {p} ".format(p=self.PORT), Fore.BLUE)
-        try:
-            socketserver.TCPServer.allow_reuse_address = True
-            self.tcp_socket = socketserver.TCPServer(("", self.PORT), self.api_handler)
-            self.tcp_socket.serve_forever()
-        except KeyboardInterrupt:
-            cout("HTTP", Fore.RED, "Ctrl + Alt detected, closing server.", Fore.BLUE)
-        finally:
-            cout("HTTP", Fore.RED, "Closing server.", Fore.BLUE)
 
 
 class DataPoint:
@@ -120,7 +85,7 @@ class DataSheet:
         self._h = (len(self._data_points) * self.VERT_PADDING) + 10
         points_rendered = 0
         c_width = self.find_widest_prop()
-        x, y, w, h = self._origin[0], self._origin[1], c_width + self.HOR_PADDING*2, self._h
+        x, y, w, h = self._origin[0], self._origin[1], c_width + self.HOR_PADDING * 2, self._h
 
         # grab cropped section where box will be
         if frame is not None:
@@ -143,14 +108,15 @@ class DataSheet:
 
 class Cam:
     def __init__(self, url, cam_name):
+        self.cam_name = cam_name
+
         self._background = False
         self._isSaving = True
         self._isActive = True
         self._isLinux = True
 
         self._url = url
-        self._cam_name = cam_name
-        self._root_fldr = 'recordings/{name}/'.format(name=self._cam_name)
+        self._root_fldr = 'recordings/{name}/'.format(name=self.cam_name)
         self._destination = self._root_fldr
         self._datasheet = DataSheet(10, 10, 200, 200, (255, 0, 0))
 
@@ -177,8 +143,8 @@ class Cam:
         self._cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
 
     def gen_saver(self, title, destination):
-        cout('Saver - {c}'.format(c=self._cam_name), Fore.GREEN,
-             'New recording cycle started. ({t}, {d})'.format(t=title, d=destination), Fore.BLUE)
+        utils.cout('Saver - {c}'.format(c=self.cam_name), utils.Fore.GREEN,
+                   'New recording cycle started. ({t}, {d})'.format(t=title, d=destination), utils.Fore.BLUE)
         check_save_path(destination)
         if self._isLinux:
             dest = destination + '{title}.avi'.format(title=title.replace(':', '_'))
@@ -197,7 +163,8 @@ class Cam:
 
     def new_file(self):
         self._files_saved += 1
-        cout('Saver - {c}'.format(c=self._cam_name), Fore.RED, 'Recording cycle ended. File Saved', Fore.BLUE)
+        utils.cout('Saver - {c}'.format(c=self.cam_name), utils.Fore.RED, 'Recording cycle ended. File Saved',
+                   utils.Fore.BLUE)
         self.stop_saving()
         start_time = datetime.datetime.now()
         # update destination
@@ -207,7 +174,7 @@ class Cam:
         self.start_saving()
 
     def format_destination_path(self, dt):
-        return 'recordings/{name}/'.format(name=self._cam_name) + '{year}/'.format(
+        return 'recordings/{name}/'.format(name=self.cam_name) + '{year}/'.format(
             year=str(dt.year)) + '{month}/'.format(month=str(dt.month)) + '{day}/'.format(day=str(dt.day))
 
     def start_saving(self):
@@ -223,9 +190,9 @@ class Cam:
     def update(self):
         if self._isActive:
             if not self._cap.isOpened():
-                cout("Cam - {c}".format(c=self._cam_name), Fore.YELLOW,
-                     "Oops, there was a problem connecting to {link}. Stopping process.".format(link=self._url),
-                     Fore.WHITE)
+                utils.cout("Cam - {c}".format(c=self.cam_name), utils.Fore.YELLOW,
+                           "Oops, there was a problem connecting to {link}. Stopping process.".format(link=self._url),
+                           utils.Fore.WHITE)
                 self.stop()
             else:
                 success, frame = self._cap.read()
@@ -237,7 +204,7 @@ class Cam:
                     self.write_frame(frame)
 
     def render_frame_attributes(self, frame):
-        self._datasheet.queue_point(DataPoint('Name', self._cam_name))
+        self._datasheet.queue_point(DataPoint('Name', self.cam_name))
         self._datasheet.queue_point(DataPoint('Files Saved', self._files_saved))
         self._datasheet.queue_point(DataPoint('Recording Start', self._title))
         fnl = self._datasheet.render_points(frame)
@@ -262,12 +229,12 @@ class Cam:
                 rect_size = 50
                 cv2.rectangle(processed, (self._resize_w - rect_size - 10, rect_size + 10),
                               (self._resize_w - 10, rect_size + 10), (255, 0, 0), -1)
-            cv2.imshow(self._cam_name, processed)
+            cv2.imshow(self.cam_name, processed)
 
 
 def clear_old_videos():
     thresh = datetime.datetime.now() + datetime.timedelta(-Recorded_Days)
-    cout('File Clearing', Fore.YELLOW, 'Removing files older than ' + str(thresh), Fore.BLUE)
+    utils.cout('File Clearing', utils.Fore.YELLOW, 'Removing files older than ' + str(thresh), utils.Fore.BLUE)
     files = []
     root = 'recordings'
     for cam_fldr in os.listdir(root):
@@ -283,22 +250,32 @@ def clear_old_videos():
                         files.append((datetime.datetime.strptime(rec_date, '%Y-%m-%d %H:%M:%S'), rec_path))
     for rec in files:
         if rec[0] < thresh:
-            cout('File Clearing', Fore.YELLOW, 'Removing File: ' + rec[1], Fore.BLUE)
+            utils.cout('File Clearing', utils.Fore.YELLOW, 'Removing File: ' + rec[1], utils.Fore.BLUE)
             os.remove(rec[1])
         else:
-            cout('File Clearing', Fore.YELLOW, 'Keeping File: ' + rec[1], Fore.GREEN)
+            utils.cout('File Clearing', utils.Fore.YELLOW, 'Keeping File: ' + rec[1], utils.Fore.GREEN)
 
 
 cams.append(Cam('rtsp://beverly1:0FtYard1@192.168.1.245/live', 'Beverly_Front'))
 # cams.append(Cam('rtsp://admin:jeffjadd@192.168.1.246/live', 'Beverly_Backyard'))
-44
-http_server = HttpServer()
+
+
+def export_cam_json():
+    for cam in cams:
+        try:
+            utils.write_json(cam, cam.cam_name)
+            utils.cout("Exporter - json", utils.Fore.YELLOW, "Updated file at path: {p}".format(p=utils.concat_path(cam.cam_name)),
+                       utils.Fore.BLUE)
+        except:
+            utils.cout("Exporter - json", utils.Fore.YELLOW, "Failed to write to path: {p}".format(p=utils.concat_path(cam.cam_name)),
+                       utils.Fore.BLUE)
 
 
 def main():
+    # clear videos event
     schedule.every().day.at('23:55').do(clear_old_videos)
-
-    # http_server.start()
+    # export cam data event
+    schedule.every(30).seconds.do(export_cam_json)
 
     # program loop
     while True:
