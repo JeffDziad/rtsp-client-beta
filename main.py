@@ -163,6 +163,8 @@ class Cam:
         self._title = str(datetime.datetime.now())
         self._files_saved = 0
         self._frames_captured = 0
+        self._resize_w = 854
+        self._resize_h = 480
 
         self._saver = None
         init_time = datetime.datetime.now()
@@ -245,20 +247,22 @@ class Cam:
         # determine if it's time to create a new file or delete old files
         self._saver.write(frame)
 
+    def display_preprocess(self, frame):
+        out = get_resized_frame(frame, self._resize_w, self._resize_h)
+        out = self.render_frame_attributes(out)
+        return out
+
     def display(self, frame):
-        resize_w = 854
-        resize_h = 480
         if not self._background:
-            resized = get_resized_frame(frame, resize_w, resize_h)
-            resized = self.render_frame_attributes(resized)
+            processed = self.display_preprocess(frame)
             if self._isSaving:
                 if math.sin(self._frames_captured * 0.2) > 0:
-                    cv2.circle(resized, (resize_w - 40, 35), 20, (0, 0, 255), -1)
+                    cv2.circle(processed, (self._resize_w - 40, 35), 20, (0, 0, 255), -1)
             else:
                 rect_size = 50
-                cv2.rectangle(resized, (resize_w - rect_size - 10, rect_size + 10), (resize_w - 10, rect_size + 10),
-                              (255, 0, 0), -1)
-            cv2.imshow(self._cam_name, resized)
+                cv2.rectangle(processed, (self._resize_w - rect_size - 10, rect_size + 10),
+                              (self._resize_w - 10, rect_size + 10), (255, 0, 0), -1)
+            cv2.imshow(self._cam_name, processed)
 
 
 def clear_old_videos():
