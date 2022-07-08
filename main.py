@@ -44,12 +44,10 @@ def check_save_path(path):
 class APIHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         p = self.path
-        print(p)
 
         if p == "/cams":
             self.send_header("Content-type", "text/xml")
             self.end_headers()
-            print('hello')
 
 
 class HttpServer:
@@ -70,28 +68,30 @@ class HttpServer:
 
 
 class DataPoint:
+    title = ""
+    value = None
+
     def __init__(self, title, value):
-        self._title = title
-        self._value = value
-        self._size = 0
+        self.title = title
+        self.value = value
+        self.font = cv2.FONT_HERSHEY_DUPLEX
+        self.font_scale = 0.5
+        self.color = (0, 0, 0)
+        self.thickness = 1
+        self.line_type = cv2.LINE_AA
+        self.text = self.title + ' : ' + str(self.value)
+
+    def get_text_width(self):
+        return cv2.getTextSize(self.text, self.font, self.font_scale, self.thickness)[0][0]
 
     def render_point(self, frame, x, y):
-        font = cv2.FONT_HERSHEY_DUPLEX
-        font_scale = 0.5
-        color = (0, 0, 0)
-        thickness = 1
-        line_type = cv2.LINE_AA
-        text = self._title + ' : ' + str(self._value)
-
-        self._size = cv2.getTextSize(text, font, font_scale, thickness)[0]
-
-        cv2.putText(frame, text=text,
+        cv2.putText(frame, text=self.text,
                     org=(x, y),
-                    fontFace=font,
-                    fontScale=font_scale,
-                    color=color,
-                    thickness=thickness,
-                    lineType=line_type)
+                    fontFace=self.font,
+                    fontScale=self.font_scale,
+                    color=self.color,
+                    thickness=self.thickness,
+                    lineType=self.line_type)
 
 
 class DataSheet:
@@ -107,25 +107,35 @@ class DataSheet:
     def queue_point(self, data_point):
         self._data_points.append(data_point)
 
+    def find_widest_prop(self):
+        out = 0
+        for prop in self._data_points:
+            w = prop.get_text_width()
+            if w > out:
+                out = w
+        return out
+
     def render_points(self, frame):
         # setup variables
         self._h = (len(self._data_points) * self.VERT_PADDING) + 10
         points_rendered = 0
-        x, y, w, h = self._origin[0], self._origin[1], self._w, self._h
+        c_width = self.find_widest_prop()
+        x, y, w, h = self._origin[0], self._origin[1], c_width + self.HOR_PADDING*2, self._h
 
         # grab cropped section where box will be
-        sub_img = frame[y: y + h, x: x + w]
-        # create a blue rect from sub_img properties
-        blue_rect = np.ones(sub_img.shape, dtype=np.uint8) * 255
-        # combine
-        final_edit = cv2.addWeighted(sub_img, 0.5, blue_rect, 0.5, 1.0)
-        # re-insert
-        frame[y:y + h, x:x + w] = final_edit
+        if frame is not None:
+            sub_img = frame[y: y + h, x: x + w]
+            # create a blue rect from sub_img properties
+            blue_rect = np.ones(sub_img.shape, dtype=np.uint8) * 255
+            # combine
+            final_edit = cv2.addWeighted(sub_img, 0.5, blue_rect, 0.5, 1.0)
+            # re-insert
+            frame[y:y + h, x:x + w] = final_edit
 
-        for dp in self._data_points:
-            points_rendered += 1
-            dp.render_point(frame, self._origin[0] + self.HOR_PADDING,
-                            self._origin[1] + (points_rendered * self.VERT_PADDING))
+            for dp in self._data_points:
+                points_rendered += 1
+                dp.render_point(frame, x + self.HOR_PADDING,
+                                y + (points_rendered * self.VERT_PADDING))
 
         self._data_points = []
         return frame
@@ -225,7 +235,9 @@ class Cam:
                     self.write_frame(frame)
 
     def render_frame_attributes(self, frame):
+        self._datasheet.queue_point(DataPoint('Name', self._cam_name))
         self._datasheet.queue_point(DataPoint('Files Saved', self._files_saved))
+        self._datasheet.queue_point(DataPoint('Recording Start', self._title))
         fnl = self._datasheet.render_points(frame)
         return fnl
 
@@ -274,20 +286,18 @@ def clear_old_videos():
 
 
 cams.append(Cam('rtsp://beverly1:0FtYard1@192.168.1.245/live', 'Beverly_Front'))
-
 # cams.append(Cam('rtsp://admin:jeffjadd@192.168.1.246/live', 'Beverly_Backyard'))
-
+44
 http_server = HttpServer()
 
 
 def main():
     schedule.every().day.at('23:55').do(clear_old_videos)
 
-    http_server.start()
+    # http_server.start()
 
     # program loop
     while True:
-
         for c1 in cams:
             c1.update()
 
