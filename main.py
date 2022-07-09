@@ -117,7 +117,7 @@ class Cam:
 
         self._url = url
         self._root_fldr = 'recordings/{name}/'.format(name=self.cam_name)
-        self._destination = self._root_fldr
+        self.destination = self._root_fldr
         self._datasheet = DataSheet(10, 10, 200, 200, (255, 0, 0))
 
         self._cap = None
@@ -127,14 +127,14 @@ class Cam:
         self._frame_height = int(self._cap.get(4))
         self._save_length = Recording_Length
         self._title = str(datetime.datetime.now())
-        self._files_saved = 0
+        self.files_saved = 0
         self._frames_captured = 0
         self._resize_w = 854
         self._resize_h = 480
 
         self._saver = None
-        init_time = datetime.datetime.now()
-        self.gen_saver(str(init_time), self.format_destination_path(init_time))
+        self.init_time = datetime.datetime.now()
+        self.gen_saver(str(self.init_time), self.format_destination_path(self.init_time))
 
         # register new file event
         schedule.every(self._save_length).minutes.do(self.new_file)
@@ -162,13 +162,13 @@ class Cam:
         self._isActive = False
 
     def new_file(self):
-        self._files_saved += 1
+        self.files_saved += 1
         utils.cout('Saver - {c}'.format(c=self.cam_name), utils.Fore.RED, 'Recording cycle ended. File Saved',
                    utils.Fore.BLUE)
         self.stop_saving()
         start_time = datetime.datetime.now()
         # update destination
-        self._destination = self.format_destination_path(start_time)
+        self.destination = self.format_destination_path(start_time)
         # assign new title
         self._title = str(start_time)
         self.start_saving()
@@ -180,7 +180,7 @@ class Cam:
     def start_saving(self):
         # regenerate saver with new title and destination
         self._isSaving = True
-        self.gen_saver(self._title, self._destination)
+        self.gen_saver(self._title, self.destination)
 
     def stop_saving(self):
         # close saver instance
@@ -205,7 +205,7 @@ class Cam:
 
     def render_frame_attributes(self, frame):
         self._datasheet.queue_point(DataPoint('Name', self.cam_name))
-        self._datasheet.queue_point(DataPoint('Files Saved', self._files_saved))
+        self._datasheet.queue_point(DataPoint('Files Saved', self.files_saved))
         self._datasheet.queue_point(DataPoint('Recording Start', self._title))
         fnl = self._datasheet.render_points(frame)
         return fnl
@@ -262,8 +262,14 @@ cams.append(Cam('rtsp://beverly1:0FtYard1@192.168.1.245/live', 'Beverly_Front'))
 
 def export_cam_json():
     for cam in cams:
+        to_be_saved = {
+            "cam_name": cam.cam_name,
+            "session_start": str(cam.init_time),
+            "session_saves": cam.files_saved,
+            "day_path": cam.destination
+        }
         try:
-            utils.write_json(cam, cam.cam_name)
+            utils.write_json(to_be_saved, cam.cam_name)
             utils.cout("Exporter - json", utils.Fore.YELLOW, "Updated file at path: {p}".format(p=utils.concat_path(cam.cam_name)),
                        utils.Fore.BLUE)
         except:
