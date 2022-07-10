@@ -266,7 +266,7 @@ def export_cam_json():
             "cam_name": cam.cam_name,
             "session_start": str(cam.init_time),
             "session_saves": cam.files_saved,
-            "day_path": cam.destination
+            "current_save_path": cam.destination
         }
         try:
             utils.write_json(to_be_saved, cam.cam_name)
