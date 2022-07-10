@@ -139,6 +139,11 @@ class Cam:
         # register new file event
         schedule.every(self._save_length).minutes.do(self.new_file)
 
+    def get_fps(self):
+        now = datetime.datetime.now()
+        diff = now - self.init_time
+        return self._frames_captured / diff.total_seconds()
+
     def gen_capture(self):
         self._cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
 
@@ -207,6 +212,7 @@ class Cam:
         self._datasheet.queue_point(DataPoint('Name', self.cam_name))
         self._datasheet.queue_point(DataPoint('Files Saved', self.files_saved))
         self._datasheet.queue_point(DataPoint('Recording Start', self._title))
+        self._datasheet.queue_point(DataPoint('FPS', str(self.get_fps())))
         fnl = self._datasheet.render_points(frame)
         return fnl
 
