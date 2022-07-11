@@ -7,11 +7,12 @@ import datetime
 import numpy as np
 import utils
 
+
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;udp'
 cams = []
 cycle_start = datetime.datetime.now()
-Recorded_Days = 10
-Recording_Length = 1
+Recorded_Days = 2  # days
+Recording_Length = 10  # minutes
 
 
 def get_resized_frame(frame, w, h):
@@ -212,7 +213,7 @@ class Cam:
         self._datasheet.queue_point(DataPoint('Name', self.cam_name))
         self._datasheet.queue_point(DataPoint('Files Saved', self.files_saved))
         self._datasheet.queue_point(DataPoint('Recording Start', self._title))
-        self._datasheet.queue_point(DataPoint('FPS', str(self.get_fps())))
+        self._datasheet.queue_point(DataPoint('FPS', str(format(self.get_fps(), '.2f'))))
         fnl = self._datasheet.render_points(frame)
         return fnl
 
@@ -222,6 +223,7 @@ class Cam:
 
     def display_preprocess(self, frame):
         out = get_resized_frame(frame, self._resize_w, self._resize_h)
+        # out = ObjectDetection.render_object_rects(out)
         out = self.render_frame_attributes(out)
         return out
 
@@ -263,6 +265,8 @@ def clear_old_videos():
 
 
 cams.append(Cam('rtsp://beverly1:0FtYard1@192.168.1.245/live', 'Beverly_Front'))
+
+
 # cams.append(Cam('rtsp://admin:jeffjadd@192.168.1.246/live', 'Beverly_Backyard'))
 
 
@@ -276,10 +280,12 @@ def export_cam_json():
         }
         try:
             utils.write_json(to_be_saved, cam.cam_name)
-            utils.cout("Exporter - json", utils.Fore.YELLOW, "Updated file at path: {p}".format(p=utils.concat_path(cam.cam_name)),
+            utils.cout("Exporter - json", utils.Fore.YELLOW,
+                       "Updated file at path: {p}".format(p=utils.concat_path(cam.cam_name)),
                        utils.Fore.BLUE)
         except:
-            utils.cout("Exporter - json", utils.Fore.YELLOW, "Failed to write to path: {p}".format(p=utils.concat_path(cam.cam_name)),
+            utils.cout("Exporter - json", utils.Fore.YELLOW,
+                       "Failed to write to path: {p}".format(p=utils.concat_path(cam.cam_name)),
                        utils.Fore.BLUE)
 
 
