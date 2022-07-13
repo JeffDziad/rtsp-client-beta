@@ -33,16 +33,21 @@ def check_save_path(path):
             raise
 
 
+class SecurityAgent:
+    def __init__(self):
+        self.running = True
+
+
 class DataPoint:
     title = ""
     value = None
 
-    def __init__(self, title, value):
+    def __init__(self, title, value, color=(0, 0, 0)):
         self.title = title
         self.value = value
         self.font = cv2.FONT_HERSHEY_DUPLEX
         self.font_scale = 0.5
-        self.color = (0, 0, 0)
+        self.color = color
         self.thickness = 1
         self.line_type = cv2.LINE_AA
         self.text = self.title + ' : ' + str(self.value)
@@ -116,10 +121,13 @@ class Cam:
         self._isActive = True
         self._isLinux = True
 
+        self._resize_w = 854
+        self._resize_h = 480
         self._url = url
         self._root_fldr = 'recordings/{name}/'.format(name=self.cam_name)
         self.destination = self._root_fldr
         self._datasheet = DataSheet(10, 10, 200, 200, (255, 0, 0))
+        self._sessionsheet = DataSheet(10, self._resize_h - 80, 200, 200, (255, 0, 0))
 
         self._cap = None
         self.gen_capture()
@@ -130,8 +138,6 @@ class Cam:
         self._title = str(datetime.datetime.now())
         self.files_saved = 0
         self._frames_captured = 0
-        self._resize_w = 854
-        self._resize_h = 480
 
         self._saver = None
         self.init_time = datetime.datetime.now()
@@ -202,12 +208,13 @@ class Cam:
                 self.stop()
             else:
                 success, frame = self._cap.read()
-                self._frames_captured += 1
-                # if background is false, display live stream
-                if not self._background:
-                    self.display(frame)
-                if self._isSaving:
-                    self.write_frame(frame)
+                if success:
+                    self._frames_captured += 1
+                    # if background is false, display live stream
+                    if not self._background:
+                        self.display(frame)
+                    if self._isSaving:
+                        self.write_frame(frame)
 
     def render_frame_attributes(self, frame):
         self._datasheet.queue_point(DataPoint('Name', self.cam_name))
@@ -215,6 +222,10 @@ class Cam:
         self._datasheet.queue_point(DataPoint('Recording Start', self._title))
         self._datasheet.queue_point(DataPoint('FPS', str(format(self.get_fps(), '.2f'))))
         fnl = self._datasheet.render_points(frame)
+        self._sessionsheet.queue_point(DataPoint('Session Details', ""))
+        self._sessionsheet.queue_point(DataPoint('Start', str(self.init_time)))
+        self._sessionsheet.queue_point(DataPoint('Security Mode', "Enabled" if sa.running else "Disabled", (0, 255, 0) if sa.running else (0, 0, 255)))
+        fnl = self._sessionsheet.render_points(fnl)
         return fnl
 
     def write_frame(self, frame):
@@ -263,10 +274,8 @@ def clear_old_videos():
         else:
             utils.cout('File Clearing', utils.Fore.YELLOW, 'Keeping File: ' + rec[1], utils.Fore.GREEN)
 
-
+sa = SecurityAgent()
 cams.append(Cam('rtsp://beverly1:0FtYard1@192.168.1.245/live', 'Beverly_Front'))
-
-
 # cams.append(Cam('rtsp://admin:jeffjadd@192.168.1.246/live', 'Beverly_Backyard'))
 
 
